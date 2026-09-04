@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets.json
+doctor-report*.json
+__pycache__/
+*.py[cod]
+.pytest_cache/
+build/
+dist/
+*.egg-info/
+.venv/
+venv/
