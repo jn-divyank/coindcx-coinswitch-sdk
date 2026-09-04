@@ -17,11 +17,13 @@ from __future__ import annotations
 import json
 import random
 import time
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 import requests
 
-from .errors import ApiError, TransportError, error_for_status
+from .errors import ApiError, RateLimitError, TransportError, error_for_status
+from .ratelimit import RateLimiter
 
 DEFAULT_TIMEOUT = 15.0
 DEFAULT_MAX_RETRIES = 3
@@ -58,10 +60,12 @@ class Transport:
         timeout: float = DEFAULT_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
         session: requests.Session | None = None,
+        limiter: RateLimiter | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.max_retries = max_retries
+        self.limiter = limiter
         self.session = session or requests.Session()
         self.session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
 
@@ -83,6 +87,12 @@ class Transport:
         """
         method = method.upper()
         url = f"{self.base_url}{path}"
+        if self.limiter is not None and not self.limiter.acquire(path):
+            raise RateLimitError(
+                f"local rate limit reached for {path} "
+                f"({self.limiter.limit_for(path)}) - request not sent",
+                url=url,
+            )
         retryable = method in _IDEMPOTENT_METHODS
         attempt = 0
         last_exc: Exception | None = None
@@ -136,14 +146,13 @@ class Transport:
 
         # CoinSwitch's HFT surface wraps everything in a Bybit-style envelope and
         # can report failure inside a 200. Unwrap it so callers see one shape.
-        if isinstance(payload, dict) and "retCode" in payload:
-            if payload.get("retCode") not in (0, None):
-                raise ApiError(
-                    payload.get("retMsg") or "HFT request failed",
-                    status=response.status_code,
-                    body=payload,
-                    url=url,
-                )
+        if isinstance(payload, dict) and payload.get("retCode", 0) not in (0, None):
+            raise ApiError(
+                payload.get("retMsg") or "HFT request failed",
+                status=response.status_code,
+                body=payload,
+                url=url,
+            )
         return payload
 
     def _sleep(self, attempt: int, response: requests.Response | None = None) -> None:
@@ -158,7 +167,7 @@ class Transport:
     def close(self) -> None:
         self.session.close()
 
-    def __enter__(self) -> "Transport":
+    def __enter__(self) -> Transport:
         return self
 
     def __exit__(self, *exc: object) -> None:

@@ -54,9 +54,7 @@ def test_coinswitch_path_is_signed_url_decoded():
     encoded = coinswitch_message(
         "GET", "/trade/api/v2/orders?exchanges=coinswitchx%2Cc2c1", DOC_EPOCH
     )
-    plain = coinswitch_message(
-        "GET", "/trade/api/v2/orders?exchanges=coinswitchx,c2c1", DOC_EPOCH
-    )
+    plain = coinswitch_message("GET", "/trade/api/v2/orders?exchanges=coinswitchx,c2c1", DOC_EPOCH)
     assert encoded == plain
 
 
@@ -101,6 +99,7 @@ def test_coinswitch_rejects_malformed_secret(bad):
 # --------------------------------------------------------------------------
 # CoinDCX - HMAC-SHA256 over the serialized body
 # --------------------------------------------------------------------------
+
 
 def test_coindcx_signature_is_stable():
     """A pinned vector, so an accidental change to serialization is caught."""

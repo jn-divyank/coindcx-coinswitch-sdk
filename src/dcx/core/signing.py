@@ -39,7 +39,8 @@ import hashlib
 import hmac
 import json
 import time
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 from urllib.parse import unquote
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -59,6 +60,7 @@ def epoch_ms(offset_ms: int = 0) -> int:
 # --------------------------------------------------------------------------
 # CoinDCX - HMAC-SHA256 over the JSON body
 # --------------------------------------------------------------------------
+
 
 def serialize_coindcx_payload(payload: Mapping[str, Any]) -> str:
     """Serialize a payload to the exact string that will be signed and sent."""
@@ -80,9 +82,7 @@ def sign_coindcx(payload: Mapping[str, Any], secret: str) -> tuple[str, str]:
     if not secret:
         raise ConfigError("CoinDCX API secret is empty")
     body = serialize_coindcx_payload(payload)
-    signature = hmac.new(
-        secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256
-    ).hexdigest()
+    signature = hmac.new(secret.encode("utf-8"), body.encode("utf-8"), hashlib.sha256).hexdigest()
     return body, signature
 
 
@@ -98,6 +98,7 @@ def coindcx_headers(api_key: str, signature: str) -> dict[str, str]:
 # --------------------------------------------------------------------------
 # CoinSwitch - Ed25519 over METHOD + path_with_query + epoch
 # --------------------------------------------------------------------------
+
 
 def coinswitch_message(method: str, path_with_query: str, epoch: int | str) -> str:
     """Build the exact string CoinSwitch expects to be signed.
@@ -134,15 +135,11 @@ def _load_ed25519_key(secret_hex: str) -> Ed25519PrivateKey:
     try:
         raw = bytes.fromhex(cleaned)
     except ValueError as exc:
-        raise ConfigError(
-            "CoinSwitch API secret must be hex-encoded Ed25519 key material"
-        ) from exc
+        raise ConfigError("CoinSwitch API secret must be hex-encoded Ed25519 key material") from exc
     if len(raw) == 64:
         raw = raw[:32]
     if len(raw) != 32:
-        raise ConfigError(
-            f"CoinSwitch API secret must decode to 32 or 64 bytes, got {len(raw)}"
-        )
+        raise ConfigError(f"CoinSwitch API secret must decode to 32 or 64 bytes, got {len(raw)}")
     return Ed25519PrivateKey.from_private_bytes(raw)
 
 

@@ -32,6 +32,10 @@ market.resolve_pair("ETHUSDT")          # 'B-ETH_USDT'  (symbol -> pair form)
 market.orderbook("B-ETH_USDT")          # {'timestamp': ..., 'asks': {...}, 'bids': {...}}
 market.candles("B-ETH_USDT", "1m", 50)
 market.futures_prices()                 # mark price, funding rate, per contract
+market.futures_active_instruments()     # every tradable futures pair
+market.futures_orderbook("B-ETH_USDT")  # different shape to the spot book
+market.futures_trades("B-ETH_USDT")
+market.futures_candles("B-ETH_USDT", from_ts=..., to_ts=...)   # seconds, not ms
 ```
 
 With credentials (read from the environment — copy `.env.example` to `.env`):
@@ -53,6 +57,32 @@ dcx status                               # what is configured (never prints a ke
 dcx doctor --out doctor-report.json
 ```
 
+## Placing orders
+
+Every order is validated against **live instrument metadata** before anything is
+signed — lot step, min/max quantity, price precision, min notional, supported
+order types, and whether the market is still active. Arithmetic is `Decimal`,
+because `0.1 + 0.2 != 0.3` becomes a rejected order and `round(2.675, 2)`
+becomes a price the exchange refuses.
+
+```python
+from dcx import CoinDCXClient, OrderRequest
+
+client = CoinDCXClient()
+result = client.place_order(OrderRequest("buy", "BTCINR", "0.00123456", "8500000.99"))
+
+result["dry_run"]       # True
+result["adjustments"]   # ['quantity 0.00123456 -> 0.00123 (step 0.00001)',
+                        #  'price 8500000.99 -> 8500001.0 (1 dp)']
+result["would_send"]    # exact request body, unsent
+```
+
+Quantities round **down** to the lot step, never up — rounding up can exceed the
+balance the order was sized against. Adjustments are reported, not hidden.
+
+Cancels are deliberately *not* gated by the dry-run guard. A safety mechanism
+that stops you closing a position is a hazard, not a protection.
+
 ## Safety
 
 Order placement is **dry-run by default**. Going live needs *both*:
@@ -68,6 +98,17 @@ de-duplicated by the exchange rather than filled twice.
 
 These checks live in the connector, at the layer that touches the wire, because
 that is the only place a bug further up the stack cannot route around them.
+
+## Rate limiting
+
+CoinSwitch publishes exact per-key limits (futures order placement is 20/60s,
+tighter than most); CoinDCX publishes none, so it gets a conservative default.
+Both clients pace themselves with a sliding-window limiter — a 24/7 agent
+polling positions will otherwise find these limits the hard way, and a 429 in
+the middle of managing a position is a bad time to discover them.
+
+Hitting the local limit raises `RateLimitError` **without sending**, rather than
+blocking indefinitely. `client.limiter.snapshot()` shows current usage.
 
 ## What you should know about the two exchanges
 
@@ -179,9 +220,16 @@ Verified live: all CoinDCX public endpoints, CoinSwitch server time, and every
 authenticated endpoint path listed above (via signed requests with throwaway
 keys — 401 confirms the path, 404 would mean it is wrong).
 
-Not yet built, deliberately: order placement, cancellation and position
-management. Those endpoints are enumerated and their methods known, but writing
-them before the `doctor` handshake confirms authenticated request/response
-shapes would mean shipping code that has never executed. WebSockets are also
-out of scope for now — CoinDCX uses socket.io pinned to v2.4.0, CoinSwitch HFT
-uses NATS, and they are two separate implementations rather than one.
+Spot order placement and cancellation are built, with construction and
+validation fully tested against live instrument metadata. The *send* itself has
+only been exercised in dry run — its wire format comes from the docs and is
+confirmed by the `doctor` handshake, not by having placed a real order.
+
+Not yet built: futures and HFT order placement, position management, and
+websockets. CoinDCX uses socket.io pinned to v2.4.0 and CoinSwitch HFT uses
+NATS, so sockets are two separate implementations rather than one — deferred
+until they are actually needed.
+
+CI runs the offline suite on Python 3.10–3.12, lints with ruff, scans for
+secrets with gitleaks, and runs the live tests daily so an exchange changing a
+response shape shows up as a failure rather than a surprise.

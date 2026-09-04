@@ -13,10 +13,17 @@ Quick start, no credentials needed::
 
 With credentials (read from the environment - see ``.env.example``)::
 
-    from dcx import CoinDCXClient, CoinSwitchClient
+    from dcx import CoinDCXClient, CoinSwitchClient, OrderRequest
 
     CoinSwitchClient().validate_keys()      # {'message': 'Valid Access'}
-    CoinDCXClient().balances()
+    client = CoinDCXClient()
+    client.balances()
+
+    # Dry run by default: validated and built, but not sent.
+    result = client.place_order(OrderRequest("buy", "BTCINR", "0.001", 8_500_000))
+    result["dry_run"]        # True
+    result["would_send"]     # the exact body that would have gone out
+    result["adjustments"]    # ['quantity 0.001 -> ... (step 0.00001)']
 
 **Order placement is dry-run by default.** Going live requires both
 ``allow_live=True`` on the guard and ``DCX_ALLOW_LIVE_TRADING=1`` in the
@@ -56,6 +63,15 @@ from .core.errors import (
     ValidationError,
 )
 from .core.guards import TradingGuard, new_client_order_id
+from .core.orders import (
+    InstrumentSpec,
+    OrderRequest,
+    OrderValidationError,
+    ValidatedOrder,
+    find_instrument,
+    validate_order,
+)
+from .core.ratelimit import Limit, RateLimiter, coindcx_limiter, coinswitch_limiter
 
 __version__ = "0.1.0"
 
@@ -68,6 +84,16 @@ __all__ = [
     "ServerClock",
     "TradingGuard",
     "new_client_order_id",
+    "InstrumentSpec",
+    "OrderRequest",
+    "ValidatedOrder",
+    "OrderValidationError",
+    "validate_order",
+    "find_instrument",
+    "Limit",
+    "RateLimiter",
+    "coindcx_limiter",
+    "coinswitch_limiter",
     "coindcx_credentials",
     "coinswitch_credentials",
     "load_dotenv",

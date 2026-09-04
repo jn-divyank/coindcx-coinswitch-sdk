@@ -27,8 +27,9 @@ def test_require_names_what_is_missing():
         Credentials("key", "", "coindcx").require()
 
 
-@pytest.mark.parametrize("value,expected", [("1", True), ("0", False), ("true", False),
-                                            ("yes", False), ("", False)])
+@pytest.mark.parametrize(
+    "value,expected", [("1", True), ("0", False), ("true", False), ("yes", False), ("", False)]
+)
 def test_live_trading_flag_is_strict(monkeypatch, value, expected):
     """Only "1" counts. Enabling live trading should not happen by accident."""
     monkeypatch.setenv("DCX_ALLOW_LIVE_TRADING", value)
@@ -44,11 +45,12 @@ def test_max_notional_rejects_garbage(monkeypatch):
 def test_dotenv_does_not_override_real_environment(monkeypatch, tmp_path):
     """A real env var must beat the file, so production config always wins."""
     env_file = tmp_path / ".env"
-    env_file.write_text('COINDCX_API_KEY=from_file\nOTHER=from_file\n')
+    env_file.write_text("COINDCX_API_KEY=from_file\nOTHER=from_file\n")
     monkeypatch.setenv("COINDCX_API_KEY", "from_env")
     monkeypatch.delenv("OTHER", raising=False)
     load_dotenv(str(env_file))
     import os
+
     assert os.environ["COINDCX_API_KEY"] == "from_env"
     assert os.environ["OTHER"] == "from_file"
 

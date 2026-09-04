@@ -32,7 +32,8 @@ import json
 import platform
 import sys
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from .coindcx.public import CoinDCXPublic
 from .coinswitch.public import CoinSwitchPublic
@@ -133,7 +134,9 @@ def run(include_private: bool = True) -> dict[str, Any]:
     checks.append(probe("coindcx.public.markets_details", dcx_public.markets_details))
     checks.append(probe("coindcx.public.ticker", dcx_public.ticker))
     checks.append(probe("coindcx.public.orderbook", lambda: dcx_public.orderbook("B-BTC_USDT")))
-    checks.append(probe("coindcx.public.candles", lambda: dcx_public.candles("B-BTC_USDT", "1m", 5)))
+    checks.append(
+        probe("coindcx.public.candles", lambda: dcx_public.candles("B-BTC_USDT", "1m", 5))
+    )
     checks.append(probe("coindcx.public.futures_prices", dcx_public.futures_prices))
     checks.append(probe("coinswitch.public.server_time", cs_public.server_time_ms))
 
@@ -204,7 +207,9 @@ def summarize(report: dict[str, Any]) -> str:
     lines = ["", "dcx doctor", "=" * 60]
     for check in report["checks"]:
         mark = "PASS" if check.get("ok") else "FAIL"
-        detail = "" if check.get("ok") else f"  {check.get('status') or ''} {check.get('error', '')}"
+        detail = (
+            "" if check.get("ok") else f"  {check.get('status') or ''} {check.get('error', '')}"
+        )
         lines.append(f"  [{mark}] {check['endpoint']:44s} {check['ms']:>7.1f}ms{detail}")
     passed = sum(1 for c in report["checks"] if c.get("ok"))
     lines.append("-" * 60)

@@ -41,9 +41,17 @@ def test_markets_details_carry_sizing_fields(coindcx):
     """These fields are what any order builder needs; if they vanish, sizing breaks."""
     details = coindcx.markets_details()
     entry = next(m for m in details if m["symbol"] == "BTCINR")
-    for field in ("min_quantity", "max_quantity", "step", "min_notional",
-                  "base_currency_precision", "target_currency_precision",
-                  "order_types", "pair", "status"):
+    for field in (
+        "min_quantity",
+        "max_quantity",
+        "step",
+        "min_notional",
+        "base_currency_precision",
+        "target_currency_precision",
+        "order_types",
+        "pair",
+        "status",
+    ):
         assert field in entry, f"markets_details lost {field!r}"
 
 
@@ -114,6 +122,33 @@ def test_coinswitch_market_data_requires_auth(base, path):
     these ever starts returning 200, that is good news worth acting on - and
     this test failing is how we would find out.
     """
-    with Transport(base) as http:
-        with pytest.raises(AuthError):
-            http.request("GET", path)
+    with Transport(base) as http, pytest.raises(AuthError):
+        http.request("GET", path)
+
+
+def test_futures_active_instruments(coindcx):
+    pairs = coindcx.futures_active_instruments()
+    assert isinstance(pairs, list) and len(pairs) > 50
+    assert all(p.startswith("B-") for p in pairs[:20])
+
+
+def test_futures_trades_use_spelled_out_field_names(coindcx):
+    """Unlike the single-letter spot trade feed."""
+    trade = coindcx.futures_trades("B-ETH_USDT")[0]
+    assert set(trade) >= {"price", "quantity", "timestamp", "is_maker"}
+
+
+def test_futures_orderbook_has_its_own_shape(coindcx):
+    """`ts`/`vs`, not `timestamp` - a different shape to the spot book."""
+    book = coindcx.futures_orderbook("B-ETH_USDT", 10)
+    assert set(book) >= {"asks", "bids", "ts"}
+    assert isinstance(book["asks"], dict)
+
+
+def test_futures_candles_take_seconds_not_milliseconds(coindcx):
+    now = int(time.time())
+    candles = coindcx.futures_candles("B-ETH_USDT", from_ts=now - 3600, to_ts=now)
+    assert candles, "no futures candles returned for the last hour"
+    assert set(candles[0]) >= {"open", "high", "low", "close", "volume", "time"}
+    # A millisecond value here would silently return nothing useful.
+    assert candles[0]["time"] > 1_000_000_000_000, "candle time should be ms"

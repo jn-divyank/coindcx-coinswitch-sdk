@@ -13,9 +13,10 @@ what makes this possible before you have credentials.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
-from typing import Callable
+from collections.abc import Callable
 
 # Re-measure at most this often; the offset does not move fast.
 DEFAULT_REFRESH_SECONDS = 300.0
@@ -71,14 +72,12 @@ class ServerClock:
     def now_ms(self) -> int:
         """Current server time in milliseconds, syncing first if the offset is stale."""
         if time.time() - self._measured_at > self._refresh_seconds:
-            try:
+            # A failed sync must never block a request: fall back to the last
+            # known offset (or zero). A real skew problem surfaces as a 401 with
+            # a clear message, which is more actionable than a transport error
+            # raised from inside the signing path.
+            with contextlib.suppress(Exception):
                 self.sync()
-            except Exception:
-                # A failed sync must never block a request: fall back to the
-                # last known offset (or zero). A real skew problem will surface
-                # as a 401 with a clear message, which is more actionable than
-                # a transport error raised from inside the signing path.
-                pass
         return int(time.time() * 1000) + self._offset_ms
 
     def skew_warning(self) -> str | None:

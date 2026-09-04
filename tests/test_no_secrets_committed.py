@@ -10,8 +10,6 @@ import re
 import subprocess
 from pathlib import Path
 
-import pytest
-
 ROOT = Path(__file__).resolve().parent.parent
 
 # Ed25519 keys are 64 or 128 hex chars; CoinDCX secrets are long hex too.

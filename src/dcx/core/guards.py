@@ -80,7 +80,9 @@ class TradingGuard:
     def explain(self) -> str:
         """One line describing the current posture, for logs and the CLI."""
         if self.is_live:
-            cap = f"max_notional={self.max_notional:,.2f}" if self.max_notional else "no notional cap"
+            cap = (
+                f"max_notional={self.max_notional:,.2f}" if self.max_notional else "no notional cap"
+            )
             return f"LIVE TRADING ENABLED ({cap})"
         reasons = []
         if not self.allow_live:

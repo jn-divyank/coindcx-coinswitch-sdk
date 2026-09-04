@@ -34,12 +34,10 @@ class Credentials:
     api_secret: str
     exchange: str
 
-    def require(self) -> "Credentials":
+    def require(self) -> Credentials:
         """Return self, or raise :class:`ConfigError` naming what is missing."""
         missing = [
-            n
-            for n, v in (("api_key", self.api_key), ("api_secret", self.api_secret))
-            if not v
+            n for n, v in (("api_key", self.api_key), ("api_secret", self.api_secret)) if not v
         ]
         if missing:
             prefix = self.exchange.upper()
@@ -65,9 +63,7 @@ def coindcx_credentials() -> Credentials:
 
 def coinswitch_credentials() -> Credentials:
     """Read CoinSwitch credentials from ``COINSWITCH_API_KEY`` / ``COINSWITCH_API_SECRET``."""
-    return Credentials(
-        _env("COINSWITCH_API_KEY"), _env("COINSWITCH_API_SECRET"), "coinswitch"
-    )
+    return Credentials(_env("COINSWITCH_API_KEY"), _env("COINSWITCH_API_SECRET"), "coinswitch")
 
 
 def env_allows_live_trading() -> bool:

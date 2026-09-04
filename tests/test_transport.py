@@ -123,10 +123,12 @@ def test_post_is_never_retried_on_server_error():
 
 def test_post_is_retried_when_the_request_never_left():
     """A connection error proves nothing was sent, so a retry is safe."""
-    session = FakeSession([
-        requests.ConnectionError("dns"),
-        FakeResponse(200, {"ok": 1}),
-    ])
+    session = FakeSession(
+        [
+            requests.ConnectionError("dns"),
+            FakeResponse(200, {"ok": 1}),
+        ]
+    )
     t = Transport("https://example.test", session=session, max_retries=2)
     assert t.request("POST", "/x") == {"ok": 1}
     assert len(session.calls) == 2

@@ -25,12 +25,14 @@ else is using the old one.
 
 from __future__ import annotations
 
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 from urllib.parse import urlencode
 
 from ..core.clock import ServerClock
 from ..core.config import Credentials, coinswitch_credentials
 from ..core.guards import TradingGuard
+from ..core.ratelimit import coinswitch_limiter
 from ..core.signing import coinswitch_headers, sign_coinswitch
 from ..core.transport import Transport
 from .public import CoinSwitchPublic
@@ -74,8 +76,12 @@ class CoinSwitchClient:
     ) -> None:
         self.credentials = (credentials or coinswitch_credentials()).require()
         self.guard = guard or TradingGuard()
-        self._spot = Transport(SPOT_BASE, timeout=timeout)
-        self._hft = Transport(HFT_BASE, timeout=timeout)
+        # One limiter shared across both surfaces: CoinSwitch's limits are
+        # per API key, and there is only ever one key.
+        limiter = coinswitch_limiter()
+        self._spot = Transport(SPOT_BASE, timeout=timeout, limiter=limiter)
+        self._hft = Transport(HFT_BASE, timeout=timeout, limiter=limiter)
+        self.limiter = limiter
         self._public = CoinSwitchPublic(timeout=timeout)
         self.clock = ServerClock(self._public.server_time_ms)
 

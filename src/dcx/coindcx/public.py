@@ -107,6 +107,64 @@ class CoinDCXPublic:
         """
         return self._public.request("GET", "/market_data/v3/current_prices/futures/rt")
 
+    def futures_active_instruments(self, margin_currency: str = "USDT") -> list[str]:
+        """Every currently tradable futures pair, e.g. ``["B-ETH_USDT", ...]``.
+
+        Cheaper than :meth:`futures_instruments` when you only need to know
+        what exists, and it reflects delistings that the price feed may lag.
+        """
+        return self._api.request(
+            "GET",
+            "/exchange/v1/derivatives/futures/data/active_instruments",
+            params={"margin_currency_short_name[]": margin_currency},
+        )
+
+    def futures_trades(self, pair: str) -> list[dict[str, Any]]:
+        """Recent public futures trades.
+
+        Fields are spelled out here, unlike the single-letter spot feed:
+        ``price``, ``quantity``, ``timestamp`` (ms, as a float), ``is_maker``.
+        """
+        return self._api.request(
+            "GET", "/exchange/v1/derivatives/futures/data/trades", params={"pair": pair}
+        )
+
+    def futures_orderbook(self, pair: str, depth: int = 50) -> dict[str, Any]:
+        """Futures order book. Note this is a *different shape* to the spot book.
+
+        The path embeds the pair and depth rather than using query parameters,
+        and the timestamp key is ``ts`` (plus a ``vs`` version counter) instead
+        of ``timestamp``. ``asks``/``bids`` are still price-keyed objects.
+        """
+        return self._public.request("GET", f"/market_data/v3/orderbook/{pair}-futures/{depth}")
+
+    def futures_candles(
+        self, pair: str, *, from_ts: int, to_ts: int, resolution: str = "1"
+    ) -> list[dict[str, Any]]:
+        """Futures OHLCV candles for a time range, oldest first.
+
+        ``from_ts``/``to_ts`` are Unix **seconds**, not milliseconds - unlike
+        almost every other timestamp in this API. ``resolution`` is in minutes
+        as a string (``"1"``, ``"5"``, ``"60"``) or ``"1D"``.
+
+        The response is wrapped as ``{"s": "ok", "data": [...]}``; this returns
+        the inner list and raises if the status is not ``ok``.
+        """
+        payload = self._public.request(
+            "GET",
+            "/market_data/candlesticks",
+            params={
+                "pair": pair,
+                "from": from_ts,
+                "to": to_ts,
+                "resolution": resolution,
+                "pcode": "f",
+            },
+        )
+        if isinstance(payload, dict) and payload.get("s") != "ok":
+            raise ValueError(f"CoinDCX futures candles returned status {payload.get('s')!r}")
+        return payload["data"] if isinstance(payload, dict) else payload
+
     def futures_instruments(self, margin_currency: str = "USDT") -> dict[str, Any]:
         """Futures instrument metadata: tick size, lot size, leverage caps.
 
@@ -133,7 +191,10 @@ class CoinDCXPublic:
         if self._markets_cache is None:
             self._markets_cache = self.markets_details()
         for market in self._markets_cache:
-            if market.get("symbol") == symbol_or_pair or market.get("coindcx_name") == symbol_or_pair:
+            if (
+                market.get("symbol") == symbol_or_pair
+                or market.get("coindcx_name") == symbol_or_pair
+            ):
                 return market["pair"]
         raise KeyError(f"No CoinDCX market matching {symbol_or_pair!r}")
 

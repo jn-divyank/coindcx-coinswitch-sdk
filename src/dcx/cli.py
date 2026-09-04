@@ -47,7 +47,8 @@ def _cmd_instrument(args: argparse.Namespace) -> int:
     client = CoinDCXPublic()
     wanted = args.symbol.upper()
     matches = [
-        m for m in client.markets_details()
+        m
+        for m in client.markets_details()
         if wanted in (m.get("symbol", "").upper(), m.get("pair", "").upper())
     ]
     _emit(matches or {"error": f"no CoinDCX market matching {args.symbol!r}"})
@@ -71,7 +72,9 @@ def _cmd_book(args: argparse.Namespace) -> int:
     book = client.orderbook(client.resolve_pair(args.pair))
     # Price-keyed maps arrive unordered; sort into real depth.
     asks = sorted(((float(p), float(q)) for p, q in book["asks"].items()))[: args.depth]
-    bids = sorted(((float(p), float(q)) for p, q in book["bids"].items()), reverse=True)[: args.depth]
+    bids = sorted(((float(p), float(q)) for p, q in book["bids"].items()), reverse=True)[
+        : args.depth
+    ]
     spread = (asks[0][0] - bids[0][0]) if asks and bids else None
     _emit({"timestamp": book["timestamp"], "asks": asks, "bids": bids, "spread": spread})
     client.close()
@@ -104,13 +107,17 @@ def _cmd_status(args: argparse.Namespace) -> int:
         env_allows_live=config.env_allows_live_trading(),
         max_notional=config.env_max_notional(),
     )
-    _emit({
-        "coindcx_credentials": "set" if config.coindcx_credentials().is_present else "unset",
-        "coinswitch_credentials": "set" if config.coinswitch_credentials().is_present else "unset",
-        "env_allows_live_trading": config.env_allows_live_trading(),
-        "max_notional": config.env_max_notional(),
-        "posture": guard.explain(),
-    })
+    _emit(
+        {
+            "coindcx_credentials": "set" if config.coindcx_credentials().is_present else "unset",
+            "coinswitch_credentials": "set"
+            if config.coinswitch_credentials().is_present
+            else "unset",
+            "env_allows_live_trading": config.env_allows_live_trading(),
+            "max_notional": config.env_max_notional(),
+            "posture": guard.explain(),
+        }
+    )
     return 0
 
 
